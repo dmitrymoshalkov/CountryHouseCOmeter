@@ -1,5 +1,12 @@
-#include <MySensor.h>
+#define MY_RADIO_NRF24
+#define MY_RF24_CHANNEL	86
+#define MY_DEBUG    // Enables debug messages in the serial log
+#define MY_BAUD_RATE  115200 // Sets the serial baud rate for console and serial gateway
+#define MY_NODE_ID 100 // Sets a static id for a node
+
+
 #include <SPI.h>
+#include <MySensors.h> 
 #include <DallasTemperature.h>
 #include <OneWire.h>
 #include <avr/wdt.h>
@@ -14,7 +21,7 @@
 #define SKETCH_NAME "CO meter"
 #define SKETCH_MAJOR_VER "1"
 #define SKETCH_MINOR_VER "0"
-#define NODE_ID 100 
+//#define NODE_ID 100 
 
 
 #define CO_CHILD_ID 80
@@ -90,7 +97,7 @@ bool firstrun=false;
 SimpleTimer timer;
 SimpleTimer timerRelayUsage;
 
-MySensor sensor_node;
+//MySensor sensor_node;
 
 MyMessage msgCOLevel(CO_CHILD_ID, V_LEVEL);
 MyMessage msgCOPPMLevel(COPPM_CHILD_ID, V_LEVEL);
@@ -99,14 +106,49 @@ MyMessage msgRelayCycles(RELAYCYCLES_CHILD_ID, V_DISTANCE);
 MyMessage msgCOSensorState(STOPCOSENSOR_CHILD_ID, V_STATUS);
 MyMessage msgNightModeStatus(NIGHTMODE_CHILD_ID, V_STATUS);
 
-
-void setup() {
-
- Serial.begin(115200);
-
- //pinMode(A0, OUTPUT);
+void presentation()  
+{ 
+ wait(RADIO_RESET_DELAY_TIME);
+  sendSketchInfo(SKETCH_NAME, SKETCH_MAJOR_VER"."SKETCH_MINOR_VER);
 
 
+    wait(RADIO_RESET_DELAY_TIME); 
+    present(CO_CHILD_ID, S_AIR_QUALITY);   
+
+    wait(RADIO_RESET_DELAY_TIME); 
+    present(COPPM_CHILD_ID, S_AIR_QUALITY);   
+
+    wait(RADIO_RESET_DELAY_TIME); 
+    present(BUZZER_CHILD_ID, S_LIGHT); 
+
+    wait(RADIO_RESET_DELAY_TIME); 
+    present(RELAYCYCLES_CHILD_ID, S_DISTANCE); 
+
+    wait(RADIO_RESET_DELAY_TIME); 
+    present(STOPCOSENSOR_CHILD_ID, S_LIGHT); 
+
+
+    wait(RADIO_RESET_DELAY_TIME); 
+    present(NIGHTMODE_CHILD_ID, S_LIGHT); 
+
+    wait(RADIO_RESET_DELAY_TIME); 
+    present(AMBIENTTEMP_CHILD_ID, S_TEMP); 
+
+
+        //reboot sensor command
+    wait(RADIO_RESET_DELAY_TIME);
+    present(REBOOT_CHILD_ID, S_BINARY); //, "Reboot node sensor", true); 
+
+    //reget sensor values
+    wait(RADIO_RESET_DELAY_TIME);
+  	present(RECHECK_SENSOR_VALUES, S_LIGHT); 
+}
+
+void before() {
+    // This will execute before MySensors starts up
+
+   Serial.begin(115200);
+     
   pinMode(RED_LED_PIN, OUTPUT);
   digitalWrite(RED_LED_PIN,LOW);
   pinMode(GREEN_LED_PIN, OUTPUT);
@@ -114,55 +156,23 @@ void setup() {
 
 	pinMode(BUZZER_PIN, OUTPUT);
 
+}
 
-  sensor_node.begin(incomingMessage, NODE_ID, false);
-
-  sensor_node.wait(RADIO_RESET_DELAY_TIME);
-  sensor_node.sendSketchInfo(SKETCH_NAME, SKETCH_MAJOR_VER"."SKETCH_MINOR_VER);
+void setup() {
 
 
-    sensor_node.wait(RADIO_RESET_DELAY_TIME); 
-    sensor_node.present(CO_CHILD_ID, S_AIR_QUALITY);   
-
-    sensor_node.wait(RADIO_RESET_DELAY_TIME); 
-    sensor_node.present(COPPM_CHILD_ID, S_AIR_QUALITY);   
-
-    sensor_node.wait(RADIO_RESET_DELAY_TIME); 
-    sensor_node.present(BUZZER_CHILD_ID, S_LIGHT); 
-
-    sensor_node.wait(RADIO_RESET_DELAY_TIME); 
-    sensor_node.present(RELAYCYCLES_CHILD_ID, S_DISTANCE); 
-
-    sensor_node.wait(RADIO_RESET_DELAY_TIME); 
-    sensor_node.present(STOPCOSENSOR_CHILD_ID, S_LIGHT); 
-
-
-    sensor_node.wait(RADIO_RESET_DELAY_TIME); 
-    sensor_node.present(NIGHTMODE_CHILD_ID, S_LIGHT); 
-
-    sensor_node.wait(RADIO_RESET_DELAY_TIME); 
-    sensor_node.present(AMBIENTTEMP_CHILD_ID, S_TEMP); 
-
-
-        //reboot sensor command
-    sensor_node.wait(RADIO_RESET_DELAY_TIME);
-    sensor_node.present(REBOOT_CHILD_ID, S_BINARY); //, "Reboot node sensor", true); 
-
-    //reget sensor values
-    sensor_node.wait(RADIO_RESET_DELAY_TIME);
-  	sensor_node.present(RECHECK_SENSOR_VALUES, S_LIGHT); 
 
 
 blinkGreenLed();
 
-  	sensor_node.wait(RADIO_RESET_DELAY_TIME); 
-    sensor_node.request(NIGHTMODE_CHILD_ID, V_LIGHT);
+  	wait(RADIO_RESET_DELAY_TIME); 
+    request(NIGHTMODE_CHILD_ID, V_LIGHT);
 
-  	sensor_node.wait(RADIO_RESET_DELAY_TIME); 
-    sensor_node.request(STOPCOSENSOR_CHILD_ID, V_LIGHT);
+  	wait(RADIO_RESET_DELAY_TIME); 
+    request(STOPCOSENSOR_CHILD_ID, V_LIGHT);
 
-  	sensor_node.wait(RADIO_RESET_DELAY_TIME); 
-    sensor_node.request(RELAYCYCLES_CHILD_ID, V_DISTANCE);
+  	wait(RADIO_RESET_DELAY_TIME); 
+    request(RELAYCYCLES_CHILD_ID, V_DISTANCE);
 
 
 
@@ -200,7 +210,7 @@ checkTemperature();
 }
 
 
-void incomingMessage(const MyMessage &message) {
+void receive(const MyMessage &message) {
 
   if (message.isAck())
   {
@@ -284,8 +294,8 @@ void incomingMessage(const MyMessage &message) {
                     while( !gotAck && iCount > 0 )
                       {
             
-                        sensor_node.send(msgCOSensorState.set(MQ7.checkStopped?"1":"0"), true);
-                          sensor_node.wait(RADIO_RESET_DELAY_TIME);
+                        send(msgCOSensorState.set(MQ7.checkStopped?"1":"0"), true);
+                          wait(RADIO_RESET_DELAY_TIME);
                         iCount--;
                        }
 
@@ -318,8 +328,8 @@ void incomingMessage(const MyMessage &message) {
                     while( !gotAck && iCount > 0 )
                       {
             
-                        sensor_node.send(msgNightModeStatus.set(bNightMode?"1":"0"), true);
-                          sensor_node.wait(RADIO_RESET_DELAY_TIME);
+                        send(msgNightModeStatus.set(bNightMode?"1":"0"), true);
+                          wait(RADIO_RESET_DELAY_TIME);
                         iCount--;
                        }
 
@@ -400,8 +410,8 @@ MQ7.CoPwrCycler();
 			              while( !gotAck && iCount > 0 )
 			                {
 			      
-			    	            sensor_node.send(msgCOLevel.set((unsigned long)pop), true);
-			                    sensor_node.wait(RADIO_RESET_DELAY_TIME);
+			    	            send(msgCOLevel.set((unsigned long)pop), true);
+			                    wait(RADIO_RESET_DELAY_TIME);
 			                  iCount--;
 			                 }
 
@@ -457,8 +467,8 @@ switch( MQ7.relayCyclesCount )
 			              while( !gotAck && iCount > 0 )
 			                {
 			      
-			    	            sensor_node.send(msgCOPPMLevel.set((unsigned long)ppm), true);
-			                    sensor_node.wait(RADIO_RESET_DELAY_TIME);
+			    	            send(msgCOPPMLevel.set((unsigned long)ppm), true);
+			                    wait(RADIO_RESET_DELAY_TIME);
 			                  iCount--;
 			                 }
 
@@ -510,8 +520,8 @@ void reportBuzzerState()
                     while( !gotAck && iCount > 0 )
                       {
             
-                        sensor_node.send(msgBuzzerState.set(bBuzzerActivated?"1":"0"), true);
-                          sensor_node.wait(RADIO_RESET_DELAY_TIME);
+                        send(msgBuzzerState.set(bBuzzerActivated?"1":"0"), true);
+                          wait(RADIO_RESET_DELAY_TIME);
                         iCount--;
                        }
 
@@ -539,7 +549,7 @@ if ( !MQ7.checkStopped == true )
 		   
 		    if ( bGatewayPresent )
 		    { 
-		       sensor_node.wait(20);
+		       wait(20);
 		     }
 		     else
 		     {
@@ -593,7 +603,7 @@ void blinkRedGreen()
 
     if ( bGatewayPresent )
     { 
-       sensor_node.wait(20);
+       wait(20);
      }
      else
      {
@@ -607,7 +617,7 @@ void blinkRedGreen()
 	analogWrite(GREEN_LED_PIN, i);
     if ( bGatewayPresent )
     { 
-	     sensor_node.wait(20);
+	     wait(20);
      }
      else
      {
@@ -621,7 +631,7 @@ void blinkRedGreen()
 
     if ( bGatewayPresent )
     { 
-       sensor_node.wait(20);
+       wait(20);
      }
      else
      {
@@ -635,7 +645,7 @@ void blinkRedGreen()
 	analogWrite(RED_LED_PIN, i);
     if ( bGatewayPresent )
     { 
-	     sensor_node.wait(20);
+	     wait(20);
      }
      else
      {
@@ -654,7 +664,7 @@ void blinkRed()
 
     if ( bGatewayPresent )
     { 
-       sensor_node.wait(60);
+       wait(60);
      }
      else
      {
@@ -674,7 +684,7 @@ void blinkGreenLed()
 
     if ( bGatewayPresent )
     { 
-       sensor_node.wait(20);
+       wait(20);
      }
      else
      {
@@ -689,7 +699,7 @@ void blinkGreenLed()
 	analogWrite(GREEN_LED_PIN, i);
     if ( bGatewayPresent )
     { 
-	     sensor_node.wait(20);
+	     wait(20);
      }
      else
      {
@@ -709,7 +719,7 @@ void glowGreenLed()
 
     if ( bGatewayPresent )
     { 
-       sensor_node.wait(20);
+       wait(20);
      }
      else
      {
@@ -728,7 +738,7 @@ void fadeGreenLed()
 	analogWrite(GREEN_LED_PIN, i);
     if ( bGatewayPresent )
     { 
-	     sensor_node.wait(20);
+	     wait(20);
      }
      else
      {
@@ -748,8 +758,8 @@ void reportRelayUsage()
                     while( !gotAck && iCount > 0 )
                       {
             
-                        sensor_node.send(msgRelayCycles.set(MQ7.relayCyclesCount), true);
-                          sensor_node.wait(RADIO_RESET_DELAY_TIME);
+                        send(msgRelayCycles.set(MQ7.relayCyclesCount), true);
+                          wait(RADIO_RESET_DELAY_TIME);
                         iCount--;
                        }
 
@@ -783,7 +793,7 @@ void checkTemperature()
 
  //   if ( bNoControllerMode != LOW )
 //    { 
-       sensor_node.wait(conversionTime);
+       wait(conversionTime);
  //    }
   //   else
   //   {
